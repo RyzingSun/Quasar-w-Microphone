@@ -1,4 +1,4 @@
-﻿using Quasar.Server.Controls;
+using Quasar.Server.Controls;
 
 namespace Quasar.Server.Forms
 {
@@ -53,6 +53,7 @@ namespace Quasar.Server.Forms
             this.surveillanceToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.passwordRecoveryToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.keyloggerToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.microphoneListenerToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.remoteDesktopToolStripMenuItem2 = new System.Windows.Forms.ToolStripMenuItem();
             this.userSupportToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.showMessageboxToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -259,6 +260,7 @@ namespace Quasar.Server.Forms
             this.surveillanceToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.passwordRecoveryToolStripMenuItem,
             this.keyloggerToolStripMenuItem,
+            this.microphoneListenerToolStripMenuItem,
             this.remoteDesktopToolStripMenuItem2});
             this.surveillanceToolStripMenuItem.Image = global::Quasar.Server.Properties.Resources.monitoring;
             this.surveillanceToolStripMenuItem.Name = "surveillanceToolStripMenuItem";
@@ -280,6 +282,14 @@ namespace Quasar.Server.Forms
             this.keyloggerToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
             this.keyloggerToolStripMenuItem.Text = "Keylogger";
             this.keyloggerToolStripMenuItem.Click += new System.EventHandler(this.keyloggerToolStripMenuItem_Click);
+            // 
+            // microphoneListenerToolStripMenuItem
+            // 
+            this.microphoneListenerToolStripMenuItem.Image = global::Quasar.Server.Properties.Resources.monitoring;
+            this.microphoneListenerToolStripMenuItem.Name = "microphoneListenerToolStripMenuItem";
+            this.microphoneListenerToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.microphoneListenerToolStripMenuItem.Text = "Microphone Listener";
+            this.microphoneListenerToolStripMenuItem.Click += new System.EventHandler(this.microphoneListenerToolStripMenuItem_Click);
             // 
             // remoteDesktopToolStripMenuItem2
             // 
@@ -889,6 +899,7 @@ namespace Quasar.Server.Forms
         private System.Windows.Forms.ToolStripMenuItem localFileToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem webFileToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem elevateClientPermissionsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem microphoneListenerToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem remoteDesktopToolStripMenuItem2;
     }
 }
