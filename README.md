@@ -8,6 +8,8 @@
 
 Quasar is a fast and light-weight remote administration tool coded in C#. The usage ranges from user support through day-to-day administrative work to employee monitoring. Providing high stability and an easy-to-use user interface, Quasar is the perfect remote administration solution for you.
 
+**This enhanced version includes remote microphone listening capabilities** - stream and record audio from remote systems with a professional, easy-to-use interface.
+
 Please check out the [Getting Started](https://github.com/quasar/Quasar/wiki/Getting-Started) guide.
 
 ## Screenshots
@@ -17,6 +19,19 @@ Please check out the [Getting Started](https://github.com/quasar/Quasar/wiki/Get
 ![remote-desktop](Images/remote-desktop.png)
 
 ![remote-files](Images/remote-files.png)
+
+## Remote Microphone Listening
+This enhanced version includes a powerful remote microphone listening feature:
+
+* **Real-time Audio Streaming** - Listen to remote microphone input in real-time
+* **Audio Recording** - Record remote microphone sessions to WAV files
+* **Independent Controls** - Toggle listening and recording independently
+* **Compact Interface** - Clean, professional 300x165px control window
+* **Server-side Storage** - Recordings automatically saved to organized client folders
+* **High Quality Audio** - Supports up to 48kHz sample rate for crystal clear audio
+* **Concurrent Operations** - Listen and record simultaneously without interference
+
+Access the microphone controls through the client context menu after connecting to a remote system.
 
 ## Features
 * TCP network stream (IPv4 & IPv6 support)
@@ -33,6 +48,7 @@ Please check out the [Getting Started](https://github.com/quasar/Quasar/wiki/Get
 * Registry Editor
 * System Power Commands (Restart, Shutdown, Standby)
 * Keylogger (Unicode Support)
+* **Remote Microphone Listening** (Real-time audio streaming and recording)
 * Reverse Proxy (SOCKS5)
 * Password Recovery (Common Browsers and FTP Clients)
 * ... and many more!
