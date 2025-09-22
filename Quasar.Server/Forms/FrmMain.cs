@@ -1,4 +1,4 @@
-﻿using Quasar.Common.Enums;
+using Quasar.Common.Enums;
 using Quasar.Common.Messages;
 using Quasar.Server.Extensions;
 using Quasar.Server.Messages;
@@ -773,5 +773,15 @@ namespace Quasar.Server.Forms
         }
 
         #endregion
+
+        private void microphoneListenerToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            foreach (Client c in GetSelectedClients())
+            {
+                FrmMicrophoneListener frmMic = FrmMicrophoneListener.CreateNewOrGetExisting(c);
+                frmMic.Show();
+                frmMic.Focus();
+            }
+        }
     }
 }
