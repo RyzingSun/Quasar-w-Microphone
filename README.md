@@ -33,23 +33,11 @@ This enhanced version includes a powerful remote microphone listening feature:
 
 Access the microphone controls through the client context menu after connecting to a remote system.
 
-## 🚀 Enhanced Privilege Escalation
-This version includes an improved privilege escalation system:
-
-* **Dual Process Mode** - Original client remains connected while spawning elevated instance
-* **Smart Mutex Handling** - Automatic detection allows both user and admin processes to coexist
-* **UAC Integration** - Uses Windows built-in elevation prompts for legitimate access
-* **Process Isolation** - Elevated and non-elevated instances run independently
-* **Seamless Operation** - No disruption to existing connections during elevation
-
-The "Elevate Permissions" feature creates a second administrator-level connection without disrupting the original client session, providing reliable privilege escalation for administrative operations.
-
 ## Features
 * TCP network stream (IPv4 & IPv6 support)
 * Fast network serialization (Protocol Buffers)
 * Encrypted communication (TLS)
 * UPnP Support (automatic port forwarding)
-* **🔥 NEW: Enhanced Privilege Escalation** - Dual-process elevation system
 * Task Manager
 * File Manager
 * Startup Manager

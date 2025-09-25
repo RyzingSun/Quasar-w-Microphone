@@ -1,4 +1,4 @@
-﻿using Gma.System.MouseKeyHook;
+using Gma.System.MouseKeyHook;
 using Quasar.Common.Enums;
 using Quasar.Common.Helpers;
 using Quasar.Common.Messages;
@@ -51,26 +51,60 @@ namespace Quasar.Server.Forms
         private readonly RemoteDesktopHandler _remoteDesktopHandler;
 
         /// <summary>
-        /// Holds the opened remote desktop form for each client.
+        /// Indicates if this form owns the handler (first form for a client).
         /// </summary>
-        private static readonly Dictionary<Client, FrmRemoteDesktop> OpenedForms = new Dictionary<Client, FrmRemoteDesktop>();
+        private readonly bool _ownsHandler;
+
+        /// <summary>
+        /// Holds the opened remote desktop forms for each client.
+        /// </summary>
+        private static readonly Dictionary<Client, List<FrmRemoteDesktop>> OpenedForms = new Dictionary<Client, List<FrmRemoteDesktop>>();
+
+        /// <summary>
+        /// Holds the shared handlers for each client to prevent conflicts.
+        /// </summary>
+        private static readonly Dictionary<Client, RemoteDesktopHandler> SharedHandlers = new Dictionary<Client, RemoteDesktopHandler>();
 
         /// <summary>
         /// Creates a new remote desktop form for the client or gets the current open form, if there exists one already.
         /// </summary>
         /// <param name="client">The client used for the remote desktop form.</param>
+        /// <param name="allowMultiple">If true, allows creating multiple forms for the same client.</param>
         /// <returns>
         /// Returns a new remote desktop form for the client if there is none currently open, otherwise creates a new one.
         /// </returns>
-        public static FrmRemoteDesktop CreateNewOrGetExisting(Client client)
+        public static FrmRemoteDesktop CreateNewOrGetExisting(Client client, bool allowMultiple = false)
         {
-            if (OpenedForms.ContainsKey(client))
+            if (!allowMultiple && OpenedForms.ContainsKey(client) && OpenedForms[client].Count > 0)
             {
-                return OpenedForms[client];
+                return OpenedForms[client][0];
             }
+            
             FrmRemoteDesktop r = new FrmRemoteDesktop(client);
-            r.Disposed += (sender, args) => OpenedForms.Remove(client);
-            OpenedForms.Add(client, r);
+            
+            if (!OpenedForms.ContainsKey(client))
+                OpenedForms[client] = new List<FrmRemoteDesktop>();
+            
+            OpenedForms[client].Add(r);
+            
+            r.Disposed += (sender, args) => 
+            {
+                if (OpenedForms.ContainsKey(client))
+                {
+                    OpenedForms[client].Remove(r);
+                    if (OpenedForms[client].Count == 0)
+                    {
+                        OpenedForms.Remove(client);
+                        // Clean up shared handler when last form closes
+                        if (SharedHandlers.ContainsKey(client))
+                        {
+                            SharedHandlers[client].Dispose();
+                            SharedHandlers.Remove(client);
+                        }
+                    }
+                }
+            };
+            
             return r;
         }
 
@@ -81,8 +115,20 @@ namespace Quasar.Server.Forms
         public FrmRemoteDesktop(Client client)
         {
             _connectClient = client;
-            _remoteDesktopHandler = new RemoteDesktopHandler(client);
             _keysPressed = new List<Keys>();
+
+            // Use shared handler to prevent conflicts between multiple windows
+            if (!SharedHandlers.ContainsKey(client))
+            {
+                SharedHandlers[client] = new RemoteDesktopHandler(client);
+                _ownsHandler = true;  // First form owns the handler
+            }
+            else
+            {
+                _ownsHandler = false;  // Subsequent forms share the handler
+            }
+            
+            _remoteDesktopHandler = SharedHandlers[client];
 
             RegisterMessageHandler();
             InitializeComponent();
@@ -109,7 +155,12 @@ namespace Quasar.Server.Forms
             _connectClient.ClientState += ClientDisconnected;
             _remoteDesktopHandler.DisplaysChanged += DisplaysChanged;
             _remoteDesktopHandler.ProgressChanged += UpdateImage;
-            MessageHandler.Register(_remoteDesktopHandler);
+            
+            // Only register the handler once (when the first form is created)
+            if (_ownsHandler)
+            {
+                MessageHandler.Register(_remoteDesktopHandler);
+            }
         }
 
         /// <summary>
@@ -117,7 +168,12 @@ namespace Quasar.Server.Forms
         /// </summary>
         private void UnregisterMessageHandler()
         {
-            MessageHandler.Unregister(_remoteDesktopHandler);
+            // Only unregister if this form owns the handler
+            if (_ownsHandler)
+            {
+                MessageHandler.Unregister(_remoteDesktopHandler);
+            }
+            
             _remoteDesktopHandler.DisplaysChanged -= DisplaysChanged;
             _remoteDesktopHandler.ProgressChanged -= UpdateImage;
             _connectClient.ClientState -= ClientDisconnected;
@@ -177,15 +233,42 @@ namespace Quasar.Server.Forms
         /// </summary>
         private void StartStream()
         {
-            ToggleConfigurationControls(true);
+            try
+            {
+                ToggleConfigurationControls(true);
 
-            picDesktop.Start();
-            // Subscribe to the new frame counter.
-            picDesktop.SetFrameUpdatedEvent(frameCounter_FrameUpdated);
+                picDesktop.Start();
+                // Subscribe to the new frame counter.
+                picDesktop.SetFrameUpdatedEvent(frameCounter_FrameUpdated);
 
-            this.ActiveControl = picDesktop;
+                this.ActiveControl = picDesktop;
 
-            _remoteDesktopHandler.BeginReceiveFrames(barQuality.Value, cbMonitors.SelectedIndex);
+                int monitorToUse;
+                // Check if "All Monitors" is selected
+                if (cbMonitors.SelectedItem != null && cbMonitors.SelectedItem.ToString() == "All Monitors")
+                {
+                    monitorToUse = 999; // Special value for all monitors
+                }
+                else
+                {
+                    monitorToUse = cbMonitors.SelectedIndex;
+                }
+                
+                // Validate monitor index before starting
+                if (monitorToUse < 0)
+                {
+                    throw new InvalidOperationException("No valid monitor selected");
+                }
+                
+                _remoteDesktopHandler.BeginReceiveFrames(barQuality.Value, monitorToUse);
+            }
+            catch (Exception ex)
+            {
+                // Handle streaming errors gracefully
+                ToggleConfigurationControls(false);
+                MessageBox.Show($"Failed to start remote desktop streaming: {ex.Message}", 
+                    "Streaming Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         /// <summary>
@@ -234,10 +317,30 @@ namespace Quasar.Server.Forms
         /// <param name="displays">The currently available displays.</param>
         private void DisplaysChanged(object sender, int displays)
         {
-            cbMonitors.Items.Clear();
-            for (int i = 0; i < displays; i++)
-                cbMonitors.Items.Add($"Display {i + 1}");
-            cbMonitors.SelectedIndex = 0;
+            try
+            {
+                {
+                    // For general forms, show all monitors
+                    cbMonitors.Items.Clear();
+                    for (int i = 0; i < displays; i++)
+                        cbMonitors.Items.Add($"Display {i + 1}");
+                    
+                    // Add "All Monitors" option if there are multiple monitors
+                    if (displays > 1)
+                    {
+                        cbMonitors.Items.Add("All Monitors");
+                    }
+                    
+                    if (cbMonitors.Items.Count > 0)
+                        cbMonitors.SelectedIndex = 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Prevent crashes from display detection issues
+                this.Text = WindowHelper.GetWindowTitle("Remote Desktop (Error)", _connectClient);
+                btnStart.Enabled = false;
+            }
         }
 
         /// <summary>
@@ -274,7 +377,14 @@ namespace Quasar.Server.Forms
             UnsubscribeEvents();
             if (_remoteDesktopHandler.IsStarted) StopStream();
             UnregisterMessageHandler();
-            _remoteDesktopHandler.Dispose();
+            
+            // Only dispose the handler if this form owns it
+            if (_ownsHandler)
+            {
+                _remoteDesktopHandler.Dispose();
+                SharedHandlers.Remove(_connectClient);
+            }
+            
             picDesktop.Image?.Dispose();
         }
 
@@ -291,15 +401,24 @@ namespace Quasar.Server.Forms
 
         private void btnStart_Click(object sender, EventArgs e)
         {
-            if (cbMonitors.Items.Count == 0)
+            try
             {
-                MessageBox.Show("No remote display detected.\nPlease wait till the client sends a list with available displays.",
-                    "Starting failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+                if (cbMonitors.Items.Count == 0)
+                {
+                    MessageBox.Show("No remote display detected.\nPlease wait till the client sends a list with available displays.",
+                        "Starting failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
 
-            SubscribeEvents();
-            StartStream();
+
+                SubscribeEvents();
+                StartStream();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to start remote desktop: {ex.Message}", 
+                    "Start Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void btnStop_Click(object sender, EventArgs e)
@@ -358,8 +477,9 @@ namespace Quasar.Server.Forms
         {
             if (picDesktop.Image != null && _enableMouseInput && this.ContainsFocus)
             {
+                int selectedDisplayIndex = cbMonitors.SelectedIndex;
                 _remoteDesktopHandler.SendMouseEvent(e.Delta == 120 ? MouseAction.ScrollUp : MouseAction.ScrollDown,
-                    false, 0, 0, cbMonitors.SelectedIndex);
+                    false, 0, 0, selectedDisplayIndex);
             }
         }
 
@@ -398,6 +518,7 @@ namespace Quasar.Server.Forms
                    || ((key & Keys.NumLock) == Keys.NumLock)
                    || ((key & Keys.Scroll) == Keys.Scroll);
         }
+
 
         #endregion
 

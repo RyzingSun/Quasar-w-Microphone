@@ -7,6 +7,7 @@ using Quasar.Server.Networking;
 using Quasar.Server.Utilities;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -647,6 +648,7 @@ namespace Quasar.Server.Forms
                 frmRd.Focus();
             }
         }
+
 
         private void passwordRecoveryToolStripMenuItem_Click(object sender, EventArgs e)
         {
