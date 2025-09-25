@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Target Name="ILRepacker" AfterTargets="PostBuildEvent" Condition="'$(Configuration)' == 'Release'">
 
@@ -8,6 +8,7 @@
     <InputAssemblies Include="$(TargetDir)Gma.System.MouseKeyHook.dll"/>
     <InputAssemblies Include="$(TargetDir)Quasar.Common.dll"/>
     <InputAssemblies Include="$(TargetDir)BouncyCastle.Crypto.dll"/>
+    <InputAssemblies Include="$(TargetDir)NAudio.dll"/>
   </ItemGroup>
 
   <ILRepack

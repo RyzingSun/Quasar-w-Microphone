@@ -159,7 +159,7 @@ namespace Quasar.Server.Messages
                     }
                     
                     // Save to file if recording is enabled
-                    if (_recordingEnabled && _waveFileWriter != null && message.AudioData != null)
+                    if (_recordingEnabled && _waveFileWriter != null && message.AudioData != null && message.AudioData.Length > 0)
                     {
                         _waveFileWriter.Write(message.AudioData, 0, message.AudioData.Length);
                         _waveFileWriter.Flush(); // Ensure data is written immediately
@@ -344,11 +344,11 @@ namespace Quasar.Server.Messages
                 string fileName = $"audio_{DateTime.Now:yyyyMMdd_HHmmss}.wav";
                 _currentRecordingFile = Path.Combine(_baseDownloadPath, fileName);
                 
-                // Create WAV file with standard format (44100 Hz, 16-bit, mono)
-                var waveFormat = new NAudio.Wave.WaveFormat(44100, 16, 1);
+                // Use the SAME format as the current audio stream
+                var waveFormat = _currentAudioFormat ?? new NAudio.Wave.WaveFormat(48000, 16, 1);
                 _waveFileWriter = new NAudio.Wave.WaveFileWriter(_currentRecordingFile, waveFormat);
                 
-                OnReport($"Recording to file started: {_currentRecordingFile}");
+                OnReport($"Recording to file started: {_currentRecordingFile} ({waveFormat.SampleRate}Hz, {waveFormat.BitsPerSample}-bit, {waveFormat.Channels}ch)");
             }
             else if (!enabled && _recordingEnabled)
             {
